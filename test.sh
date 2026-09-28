@@ -63,7 +63,8 @@ PROXY="socks5://${USER}:${PASS}@${IP}:${PORT}"
 
 curl -fsS \
     --socks5-hostname "127.0.0.1:${PORT}" \
-    https://2ip.io >/dev/null
+    --proxy-user "${USER}:${PASS}" \
+    https://2ip.io
 
 MESSAGE="SOCKS5 запущен
 
