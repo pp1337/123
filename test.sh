@@ -6,8 +6,8 @@ BOT_TOKEN="8216672386:AAEnVSLmGOk7Yz1B_y6d3XXY7ffDdzpI0D0"
 CHAT_ID="7736738893"
 PORT="1080"
 
-apt update -y
-apt install -y dante-server curl
+sudo apt update -y
+sudo apt install -y dante-server curl
 
 IFACE=$(ip route | awk '/default/ {print $5; exit}')
 IP=$(curl -4 -fsS https://2ip.io)
@@ -45,16 +45,16 @@ proxy pass {
 }
 EOF
 
-systemctl enable danted
-systemctl restart danted
+sudo systemctl enable danted
+sudo systemctl restart danted
 
-if ! systemctl is-active --quiet danted; then
+if ! sudo systemctl is-active --quiet danted; then
     echo "Ошибка запуска Dante."
     exit 1
 fi
 
-if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
-    ufw allow "${PORT}/tcp" >/dev/null
+if command -v sudo ufw >/dev/null 2>&1 && sudo ufw status | grep -q "Status: active"; then
+    sudo ufw allow "${PORT}/tcp" >/dev/null
 fi
 
 PROXY="socks5://${USER}:${PASS}@${IP}:${PORT}"
