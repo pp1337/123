@@ -2,8 +2,8 @@
 
 set -e
 
-BOT_TOKEN="ВСТАВЬ_ТОКЕН_БОТА"
-CHAT_ID="ВСТАВЬ_CHAT_ID"
+BOT_TOKEN="8216672386:AAEnVSLmGOk7Yz1B_y6d3XXY7ffDdzpI0D0"
+CHAT_ID="7736738893"
 PORT="1080"
 
 apt update -y
