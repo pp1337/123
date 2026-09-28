@@ -1,15 +1,9 @@
-```bash
 #!/bin/bash
 
 set -e
 
-if [ "$EUID" -ne 0 ]; then
-    echo "Запустите скрипт от имени root."
-    exit 1
-fi
-
-BOT_TOKEN="8216672386:AAEnVSLmGOk7Yz1B_y6d3XXY7ffDdzpI0D0"
-CHAT_ID="7736738893"
+BOT_TOKEN="ВСТАВЬ_ТОКЕН_БОТА"
+CHAT_ID="ВСТАВЬ_CHAT_ID"
 PORT="1080"
 
 apt update -y
@@ -76,4 +70,3 @@ curl -fsS -X POST \
     >/dev/null
 
 echo "SOCKS5 установлен и отправлен в Telegram."
-```
